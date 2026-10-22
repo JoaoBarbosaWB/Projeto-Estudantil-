@@ -1,2 +1,4 @@
-# Projeto-Estudantil-
-Projeto Estudantil, visando aprimoramento na parte técnica, lógica e prática.
+# PROJETO ESTUDANTIL 
+
+Um miniprojeto recriando uma experiência similar ao icônico jogo de Fliperama Bomberman.
+
