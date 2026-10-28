@@ -35,6 +35,7 @@
   let blackPottedThisShot = false;
   let opponentTimer = null;
   let shotStartedAt = 0;
+  let chargeStartedAt = 0;
   let physicsAccumulator = 0;
   let lastTime = 0;
   const GAME_ZOOM = 2.62;
@@ -230,7 +231,10 @@
   }
   function update(dt) {
     if(mode==="game"){
-      if(phase==="charging"){charge=Math.min(100,charge+dt*70);powerFill.style.width=charge+"%";powerText.textContent="Força "+Math.round(charge)+"%";}
+      if(phase==="charging"){
+        charge=Math.min(100,charge+dt*70);powerFill.style.width=charge+"%";powerText.textContent="Força "+Math.round(charge)+"%";
+        if(performance.now()-chargeStartedAt>3000)shoot();
+      }
       return;
     }
     let dx=0,dy=0;
@@ -332,7 +336,7 @@
     const strength=85+charge*3.2;
     cue.vx=Math.cos(cueAngle)*strength;cue.vy=Math.sin(cueAngle)*strength;
     pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
-    phase="rolling";message.textContent="Tacada em andamento...";updateHud();
+    phase="rolling";chargeStartedAt=0;message.textContent="Tacada em andamento...";updateHud();
   }
   function updateHud() {
     modeLabel.textContent=mode==="bar"?"Visão do bar":"Partida · 22 bolas + preta";
@@ -344,13 +348,13 @@
   }
   function enterGame() {
     if(opponentTimer){clearTimeout(opponentTimer);opponentTimer=null;}
-    mode="game";turn="player";phase="aiming";charge=0;physicsAccumulator=0;document.body.classList.add("playing");resetBalls();
+    mode="game";turn="player";phase="aiming";charge=0;chargeStartedAt=0;physicsAccumulator=0;document.body.classList.add("playing");resetBalls();
     message.textContent="Sua vez! Mova o mouse para mirar e segure o clique para carregar.";
     updateHud();
   }
   function exitGame() {
     if(opponentTimer){clearTimeout(opponentTimer);opponentTimer=null;}
-    mode="bar";phase="bar";charge=0;physicsAccumulator=0;document.body.classList.remove("playing");
+    mode="bar";phase="bar";charge=0;chargeStartedAt=0;physicsAccumulator=0;document.body.classList.remove("playing");
     message.textContent="Você saiu da mesa. Explore o bar e interaja novamente para jogar.";
     updateHud();
   }
@@ -379,10 +383,16 @@
     const x=table.x+(sx-W/2)/GAME_ZOOM,y=table.y+(sy-H/2)/GAME_ZOOM;
     const cue=balls.find(b=>b.cue&&b.active);if(cue)cueAngle=Math.atan2(y-cue.y,x-cue.x);
   });
-  canvas.addEventListener("mousedown",e=>{
-    if(mode==="game"&&turn==="player"&&phase==="aiming"){phase="charging";charge=0;powerFill.style.width="0%";powerText.textContent="Força 0%";}
+  canvas.addEventListener("pointerdown",e=>{
+    if(mode==="game"&&turn==="player"&&phase==="aiming"){
+      phase="charging";charge=0;chargeStartedAt=performance.now();powerFill.style.width="0%";powerText.textContent="Força 0%";
+      if(canvas.setPointerCapture){try{canvas.setPointerCapture(e.pointerId);}catch{}}
+    }
   });
-  window.addEventListener("mouseup",()=>{if(phase==="charging")shoot();});
+  const releaseShot=()=>{if(phase==="charging")shoot();};
+  window.addEventListener("pointerup",releaseShot);
+  window.addEventListener("pointercancel",releaseShot);
+  window.addEventListener("mouseup",releaseShot);
   window.addEventListener("blur",()=>{keys.clear();if(phase==="charging")shoot();});
   resetBalls();updateHud();requestAnimationFrame(loop);
 })();
