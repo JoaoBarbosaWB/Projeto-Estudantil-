@@ -20,9 +20,13 @@
       <canvas id="game" width="960" height="600" aria-label="Bar isométrico e mesa de sinuca"></canvas>
       <div class="hud">
         <div class="hud-chip"><span class="status-dot"></span><span id="mode-label">Visão do bar</span></div>
-        <div class="hud-chip" id="turn-label">Explore o bar</div>
+        <div class="hud-right">
+          <div class="hud-chip" id="turn-label">Explore o bar</div>
+          <button type="button" class="hud-button hidden" id="restart-button">Nova partida</button>
+          <button type="button" class="hud-button hidden" id="exit-button">Sair da mesa</button>
+        </div>
       </div>
-      <div class="message" id="message">Use WASD para caminhar. Chegue perto da mesa e aperte E.</div>
+      <div class="message" id="message">Use WASD ou toque no chão para caminhar. Perto da mesa, aperte E ou toque nela.</div>
       <div class="aim-panel hidden" id="aim-panel">
         <div class="aim-title"><span id="player-turn">SUA VEZ</span><span id="power-text">Força 0%</span></div>
         <div class="power-track"><div id="power-fill"></div></div>
@@ -32,8 +36,8 @@
     </section>
 
     <footer class="controls">
-      <div><kbd>W A S D</kbd> Caminhar <span class="separator">·</span> <kbd>E</kbd> Interagir</div>
-      <div><kbd>ESC</kbd> Sair da mesa</div>
+      <div><kbd>W A S D</kbd> ou toque Caminhar <span class="separator">·</span> <kbd>E</kbd> Interagir</div>
+      <div><kbd>R</kbd> Nova partida <span class="separator">·</span> <kbd>ESC</kbd> Sair da mesa</div>
     </footer>
     <p class="disclaimer">Protótipo visual e mecânico inicial. As regras oficiais e a carreira completa serão implementadas nas próximas etapas.</p>
   </main>

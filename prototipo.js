@@ -16,6 +16,8 @@
   const powerText = $("power-text");
   const playerTurn = $("player-turn");
   const moneyLabel = $("money");
+  const restartButton = $("restart-button");
+  const exitButton = $("exit-button");
 
   const W = BASE_W, H = BASE_H;
   const keys = new Set();
@@ -25,8 +27,7 @@
   let charge = 0;
   let cueAngle = -Math.PI / 3;
   let turn = "player";
-  let ballsPocketed = 0;
-  let pocketedThisShot = 0;
+  let firstContact = null; // primeira bola que a branca tocou na tacada atual
   let shotPocketedBalls = [];
   let playerGroup = null;
   let gameOver = false;
@@ -41,6 +42,8 @@
   const GAME_ZOOM = 2.62;
 
   const player = { x: 210, y: 390, speed: 150, facing: 1, radius: 10 };
+  let walkTarget = null; // destino do toque/clique no chão do bar
+  let enterOnArrive = false;
   const table = { x: 480, y: 315, w: 330, h: 190 };
   const pocketR = 15;
   const ballR = 8;
@@ -58,18 +61,19 @@
   function resetBalls() {
     const palette=["#f4d03f","#2878c7","#c0392b","#8e44ad","#e67e22","#27ae60","#7f1d1d","#f5a623","#17a2a2","#d35400","#91c46c"];
     const rack=[];
-    palette.forEach((color,i)=>rack.push({color,group:"lisa",number:i+1}));
-    palette.forEach((color,i)=>rack.push({color,group:"listrada",number:i+12}));
-    rack.splice(11,0,{color:"#171916",group:"preta",number:8,black:true});
+    // O 8 fica reservado para a preta: lisas 1-7 e 9-12, listradas 13-23.
+    palette.forEach((color,i)=>rack.push({color,group:"lisa",number:i<7?i+1:i+2}));
+    palette.forEach((color,i)=>rack.push({color,group:"listrada",number:i+13}));
+    // Índice 4 é o centro da terceira fileira do triângulo.
+    rack.splice(4,0,{color:"#171916",group:"preta",number:8,black:true});
     const slots=[];
     const rows=[1,2,3,4,5,6,2];
     rows.forEach((count,row)=>{for(let col=0;col<count;col++)slots.push({x:table.x+48+row*15,y:table.y+(col-(count-1)/2)*17});});
     balls=[{x:table.x-table.w/2+42,y:table.y,vx:0,vy:0,color:"#f5e9c9",cue:true,active:true}];
     rack.forEach((item,i)=>balls.push({...item,...slots[i],vx:0,vy:0,active:true}));
-    ballsPocketed=0;pocketedThisShot=0;shotPocketedBalls=[];playerGroup=null;gameOver=false;winner=null;scratchedThisShot=false;blackPottedThisShot=false;
+    shotPocketedBalls=[];playerGroup=null;gameOver=false;winner=null;scratchedThisShot=false;blackPottedThisShot=false;
   }
 
-  function isoPoint(x, y) { return { x: x, y: y }; }
   function polygon(points, fill, stroke = null) {
     ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
     for (let i=1; i<points.length; i++) ctx.lineTo(points[i].x, points[i].y);
@@ -126,7 +130,7 @@
     text("MESA PRINCIPAL",table.x,table.y+table.h/2+42,11,"#e8d6a5","center");
     if (nearTable()) {
       rect(player.x-92,player.y-50,184,25,"#172019");
-      text("APERTE E PARA JOGAR",player.x,player.y-33,10,"#f4e5b8","center");
+      text("E OU TOQUE NA MESA",player.x,player.y-33,10,"#f4e5b8","center");
     }
   }
   function drawTable() {
@@ -180,8 +184,7 @@
     const dx=Math.cos(cueAngle),dy=Math.sin(cueAngle);
     let nearest=null,nearestDistance=Infinity;
     for(const ball of balls){
-      const ownLeft=playerGroup&&balls.some(item=>item.active&&item.group===playerGroup);
-      if(!ball.active||ball.cue||(ball.black&&!ownLeft))continue;
+      if(!ball.active||ball.cue)continue;
       const rx=ball.x-cue.x,ry=ball.y-cue.y,projection=rx*dx+ry*dy;
       if(projection<=0)continue;
       const perpendicularSq=rx*rx+ry*ry-projection*projection,diameter=ballR*2;
@@ -208,7 +211,6 @@
     ctx.moveTo(cue.x-dx*(ballR+14+charge*.18),cue.y-dy*(ballR+14+charge*.18));
     ctx.lineTo(cue.x-dx*(ballR+50+charge*.18),cue.y-dy*(ballR+50+charge*.18));ctx.stroke();
   }
-  function cueRPosition(cue){return cue;}
   function drawPlayer() {
     const x=player.x,y=player.y;
     // Isometric shadow and tiny pixel character.
@@ -240,10 +242,22 @@
     let dx=0,dy=0;
     if(keys.has("w")||keys.has("arrowup"))dy-=1;if(keys.has("s")||keys.has("arrowdown"))dy+=1;
     if(keys.has("a")||keys.has("arrowleft"))dx-=1;if(keys.has("d")||keys.has("arrowright"))dx+=1;
+    if(dx||dy){walkTarget=null;enterOnArrive=false;}
+    else if(walkTarget){
+      // Caminhada por toque: segue até o destino ou para se a mesa bloquear.
+      dx=walkTarget.x-player.x;dy=walkTarget.y-player.y;
+      if(Math.hypot(dx,dy)<=player.speed*dt){
+        dx=0;dy=0;walkTarget=null;
+        if(enterOnArrive&&nearTable())enterGame();
+        enterOnArrive=false;
+      }
+    }
     if(dx||dy){
       const n=Math.hypot(dx,dy),mx=dx/n*player.speed*dt,my=dy/n*player.speed*dt;
       const nx=Math.max(28,Math.min(W-28,player.x+mx)),ny=Math.max(155,Math.min(H-30,player.y+my));
+      const ox=player.x,oy=player.y;
       if(!hitsTable(nx,player.y))player.x=nx;if(!hitsTable(player.x,ny))player.y=ny;
+      if(walkTarget&&player.x===ox&&player.y===oy){walkTarget=null;enterOnArrive=false;}
     }
   }
   function physicsStep(dt) {
@@ -253,8 +267,8 @@
       ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
       for(const pocket of pockets){
         if(Math.hypot(ball.x-pocket.x,ball.y-pocket.y)<pocketR-1){
-          if(ball.cue){scratchedThisShot=true;ball.x=left+42;ball.y=table.y;ball.vx=0;ball.vy=0;}
-          else{ball.active=false;ballsPocketed++;pocketedThisShot++;if(ball.black)blackPottedThisShot=true;else shotPocketedBalls.push(ball);}
+          if(ball.cue){scratchedThisShot=true;placeCueBall(ball,left+42);}
+          else{ball.active=false;if(ball.black)blackPottedThisShot=true;else shotPocketedBalls.push(ball);}
           break;
         }
       }
@@ -270,27 +284,57 @@
       const nx=dist?dx/dist:1,ny=dist?dy/dist:0,overlap=ballR*2-dist;
       first.x-=nx*overlap*.5;first.y-=ny*overlap*.5;second.x+=nx*overlap*.5;second.y+=ny*overlap*.5;
       const closing=(first.vx-second.vx)*nx+(first.vy-second.vy)*ny;
+      if(closing>0&&!firstContact&&(first.cue||second.cue))firstContact=first.cue?second:first;
       if(closing>0){const impulse=closing*.94;first.vx-=impulse*nx;first.vy-=impulse*ny;second.vx+=impulse*nx;second.vy+=impulse*ny;}
     }
+  }
+  function placeCueBall(cue,startX){
+    // Procura um ponto livre perto da marca de saída para a branca não nascer em cima de outra bola.
+    const free=(x,y)=>balls.every(ball=>ball===cue||!ball.active||Math.hypot(ball.x-x,ball.y-y)>=ballR*2+1);
+    const top=table.y-table.h/2+ballR,bottom=table.y+table.h/2-ballR;
+    let spot={x:startX,y:table.y};
+    search:for(let dx=0;dx<=120;dx+=ballR*2+2)for(let k=0;k<=12;k++){
+      const y=table.y+(k%2?1:-1)*Math.ceil(k/2)*(ballR*2+2);
+      if(y<top||y>bottom)continue;
+      if(free(startX+dx,y)){spot={x:startX+dx,y};break search;}
+    }
+    cue.x=spot.x;cue.y=spot.y;cue.vx=0;cue.vy=0;
+  }
+  function groupOf(who){return playerGroup?(who==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")):null;}
+  function foulReason(){
+    // Primeira bola tocada precisa ser do próprio grupo (ou a preta, se o grupo já tinha acabado).
+    if(scratchedThisShot)return "a branca caiu";
+    if(!firstContact)return "nenhuma bola foi atingida";
+    const groupBefore=groupOf(turn);
+    if(!groupBefore)return firstContact.black?"a preta foi atingida primeiro":null;
+    const ownAtStart=balls.some(ball=>ball.active&&ball.group===groupBefore)||shotPocketedBalls.some(ball=>ball.group===groupBefore);
+    if(ownAtStart)return firstContact.group===groupBefore?null:"a primeira bola atingida não era do grupo";
+    return firstContact.black?null:"era a vez de mirar na preta";
   }
   function finishShot(){
     if(phase!=="rolling")return;
     phase="settling";
+    const foul=foulReason();
     const firstGroup=shotPocketedBalls.find(ball=>ball.group==="lisa"||ball.group==="listrada")?.group;
-    const groupWasAssigned=playerGroup===null&&!!firstGroup&&!scratchedThisShot;
+    const groupWasAssigned=playerGroup===null&&!!firstGroup&&!foul;
     if(groupWasAssigned)playerGroup=turn==="player"?firstGroup:(firstGroup==="lisa"?"listrada":"lisa");
     if(blackPottedThisShot){
-      const myGroup=playerGroup?(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")):null;
+      const myGroup=groupOf(turn);
       const ownRemain=!!myGroup&&balls.some(ball=>ball.active&&ball.group===myGroup);
-      winner=myGroup&&!ownRemain&&!scratchedThisShot?turn:(turn==="player"?"opponent":"player");
-      gameOver=true;phase="finished";message.textContent=winner==="player"?"Você encaçapou a preta e venceu!":"A preta foi encaçapada fora de hora. O adversário venceu.";
+      const legal=!!myGroup&&!ownRemain&&!foul;
+      winner=legal?turn:(turn==="player"?"opponent":"player");
+      gameOver=true;phase="finished";
+      message.textContent=(turn==="player"
+        ?(legal?"Você encaçapou a preta e venceu!":"Você encaçapou a preta fora de hora. O adversário venceu.")
+        :(legal?"O adversário encaçapou a preta e venceu.":"O adversário encaçapou a preta fora de hora. Você venceu!"))
+        +" Toque em Nova partida ou aperte R.";
       updateHud();return;
     }
-    const myGroup=playerGroup?(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")):null;
+    const myGroup=groupOf(turn);
     const scoredOwn=!!myGroup&&shotPocketedBalls.some(ball=>ball.group===myGroup);
-    if(scoredOwn&&!scratchedThisShot){
+    if(scoredOwn&&!foul){
       const ownRemain=balls.some(ball=>ball.active&&!ball.cue&&ball.group===myGroup);
-      pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
+      shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
       if(turn==="opponent"){
         phase="opponent";message.textContent=ownRemain?"O adversário encaçapou uma bola e continua.":"O adversário limpou o grupo. Agora tentará a preta.";
         updateHud();scheduleOpponentShot();return;
@@ -298,11 +342,10 @@
       phase="aiming";message.textContent=groupWasAssigned?"Grupos definidos. Você continua com "+(playerGroup==="lisa"?"as lisas.":"as listradas."):(ownRemain?"Boa! Você continua.":"Suas bolas acabaram. Agora mire na preta.");
       updateHud();return;
     }
-    const hadScratch=scratchedThisShot;
     turn=turn==="player"?"opponent":"player";
-    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
-    if(turn==="opponent"){phase="opponent";message.textContent="Sua tacada terminou. O adversário vai jogar.";updateHud();scheduleOpponentShot();return;}
-    phase="aiming";message.textContent=groupWasAssigned?"Grupos definidos. Agora é a vez do adversário.":(hadScratch?"A branca caiu. Sua vez terminou.":"A tacada terminou. Sua vez.");
+    shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
+    if(turn==="opponent"){phase="opponent";message.textContent=foul?"Falta: "+foul+". O adversário vai jogar.":"Sua tacada terminou. O adversário vai jogar.";updateHud();scheduleOpponentShot();return;}
+    phase="aiming";message.textContent=foul?"O adversário fez falta ("+foul+"). Sua vez.":(groupWasAssigned?"Grupos definidos. Agora é a sua vez.":"A tacada do adversário terminou. Sua vez.");
     updateHud();
   }
   function physics(frameDt){
@@ -323,11 +366,14 @@
     if(mode!=="game"||turn!=="opponent"||phase!=="opponent"||gameOver)return;
     const cue=balls.find(ball=>ball.cue&&ball.active);
     const aiGroup=playerGroup?(playerGroup==="lisa"?"listrada":"lisa"):null;
-    const target=balls.find(ball=>ball.active&&ball.group===aiGroup&&!ball.black)||balls.find(ball=>ball.active&&!ball.cue&&!ball.black)||balls.find(ball=>ball.active&&ball.black);
+    // Sem grupo definido vale qualquer bola colorida; com o grupo limpo, só a preta.
+    const target=aiGroup
+      ?balls.find(ball=>ball.active&&ball.group===aiGroup)||balls.find(ball=>ball.active&&ball.black)
+      :balls.find(ball=>ball.active&&!ball.cue&&!ball.black)||balls.find(ball=>ball.active&&ball.black);
     if(!cue||!target){turn="player";phase="aiming";message.textContent="Sua vez.";updateHud();return;}
     const angle=Math.atan2(target.y-cue.y,target.x-cue.x);
     cue.vx=Math.cos(angle)*220;cue.vy=Math.sin(angle)*220;
-    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
+    firstContact=null;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
     phase="rolling";message.textContent="O adversário executou a tacada.";updateHud();
   }
   function shoot(){
@@ -335,21 +381,24 @@
     const cue=balls.find(ball=>ball.cue&&ball.active);if(!cue)return;
     const strength=85+charge*3.2;
     cue.vx=Math.cos(cueAngle)*strength;cue.vy=Math.sin(cueAngle)*strength;
-    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
+    firstContact=null;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
     phase="rolling";chargeStartedAt=0;message.textContent="Tacada em andamento...";updateHud();
   }
   function updateHud() {
     modeLabel.textContent=mode==="bar"?"Visão do bar":"Partida · 22 bolas + preta";
     turnLabel.textContent=mode==="bar"?"Explore o bar":gameOver?"Partida encerrada":turn==="player"?"Sua vez":"Vez do adversário";
     aimPanel.classList.toggle("hidden",mode!=="game");
+    exitButton.classList.toggle("hidden",mode!=="game");
+    restartButton.classList.toggle("hidden",mode!=="game"||!gameOver);
     message.classList.toggle("hidden",mode==="game"&&turn==="player"&&(phase==="aiming"||phase==="charging")&&!gameOver);
     playerTurn.textContent=gameOver?(winner==="player"?"VOCÊ VENCEU":"ADVERSÁRIO VENCEU"):playerGroup===null?"GRUPOS NEUTROS":(turn==="player"?"SUA VEZ":"ADVERSÁRIO")+" · "+(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")).toUpperCase();
     moneyLabel.textContent="R$ "+money;
   }
   function enterGame() {
     if(opponentTimer){clearTimeout(opponentTimer);opponentTimer=null;}
-    mode="game";turn="player";phase="aiming";charge=0;chargeStartedAt=0;physicsAccumulator=0;document.body.classList.add("playing");resetBalls();
-    message.textContent="Sua vez! Mova o mouse para mirar e segure o clique para carregar.";
+    mode="game";turn="player";phase="aiming";charge=0;chargeStartedAt=0;physicsAccumulator=0;walkTarget=null;enterOnArrive=false;document.body.classList.add("playing");resetBalls();
+    powerFill.style.width="0%";powerText.textContent="Força 0%";
+    message.textContent="Sua vez! Mire com o mouse ou o dedo e segure para carregar a tacada.";
     updateHud();
   }
   function exitGame() {
@@ -375,16 +424,31 @@
     keys.add(k);
     if(k==="e"&&mode==="bar"&&nearTable())enterGame();
     if(k==="escape"&&mode==="game")exitGame();
+    if(k==="r"&&mode==="game"&&gameOver)enterGame();
   });
   window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
-  canvas.addEventListener("mousemove",e=>{
+  function canvasPoint(e){
+    const r=canvas.getBoundingClientRect();
+    return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};
+  }
+  function aimAt(e){
     if(mode!=="game"||turn!=="player"||(phase!=="aiming"&&phase!=="charging"))return;
-    const r=canvas.getBoundingClientRect(),sx=(e.clientX-r.left)*W/r.width,sy=(e.clientY-r.top)*H/r.height;
-    const x=table.x+(sx-W/2)/GAME_ZOOM,y=table.y+(sy-H/2)/GAME_ZOOM;
+    const s=canvasPoint(e),x=table.x+(s.x-W/2)/GAME_ZOOM,y=table.y+(s.y-H/2)/GAME_ZOOM;
     const cue=balls.find(b=>b.cue&&b.active);if(cue)cueAngle=Math.atan2(y-cue.y,x-cue.x);
-  });
+  }
+  // pointermove cobre mouse e toque: no celular dá para arrastar o dedo para mirar enquanto carrega.
+  canvas.addEventListener("pointermove",aimAt);
   canvas.addEventListener("pointerdown",e=>{
+    if(mode==="bar"){
+      const s=canvasPoint(e);
+      const onTable=Math.abs(s.x-table.x)<table.w/2+18&&Math.abs(s.y-table.y)<table.h/2+24;
+      if(onTable&&nearTable()){enterGame();return;}
+      walkTarget=onTable?{x:table.x-table.w/2-40,y:table.y}:{x:s.x,y:s.y};
+      enterOnArrive=onTable;
+      return;
+    }
     if(mode==="game"&&turn==="player"&&phase==="aiming"){
+      aimAt(e);
       phase="charging";charge=0;chargeStartedAt=performance.now();powerFill.style.width="0%";powerText.textContent="Força 0%";
       if(canvas.setPointerCapture){try{canvas.setPointerCapture(e.pointerId);}catch{}}
     }
@@ -394,5 +458,7 @@
   window.addEventListener("pointercancel",releaseShot);
   window.addEventListener("mouseup",releaseShot);
   window.addEventListener("blur",()=>{keys.clear();if(phase==="charging")shoot();});
+  restartButton.addEventListener("click",enterGame);
+  exitButton.addEventListener("click",exitGame);
   resetBalls();updateHud();requestAnimationFrame(loop);
 })();

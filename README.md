@@ -4,9 +4,11 @@ Projeto independente de jogo de sinuca brasileira com modo carreira arcade, câm
 
 ## Protótipo 0.1
 - Visão ampla do bar e foco de mesa
-- Movimentação WASD
-- Interação com a mesa usando E
-- Mira com mouse e tacada por clique/segurar
+- Movimentação WASD ou toque no chão
+- Interação com a mesa usando E ou tocando nela
+- Mira com mouse ou dedo e tacada por clique/segurar
+- Faltas: branca na caçapa, nenhuma bola atingida ou primeira bola errada
+- Botões de nova partida (R) e sair da mesa (ESC)
 - Simulação inicial de movimento e colisão das bolas
 - Turno simples de adversário
 
