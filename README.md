@@ -14,3 +14,5 @@ Projeto independente de jogo de sinuca brasileira com modo carreira arcade, câm
 Abra `index.html` em um navegador moderno. Não requer instalação ou servidor nesta versão inicial.
 
 > Este é um protótipo de mecânicas e visual. As regras completas da sinuca brasileira, a carreira, os salões e a loja serão desenvolvidos em etapas futuras.
+
+https://joaobarbosawb.github.io/Projeto-Estudantil-/
