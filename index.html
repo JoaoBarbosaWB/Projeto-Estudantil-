@@ -28,6 +28,12 @@ h1 { margin: 0; font-size: clamp(19px, 3vw, 28px); letter-spacing: -.04em; }
 .wallet span { color: var(--muted); font-size: 10px; letter-spacing: .14em; }
 .wallet strong { color: var(--accent); font-size: 17px; }
 .game-frame { position: relative; overflow: hidden; border: 3px solid #80623d; border-radius: 4px; background: #29382c; box-shadow: 0 18px 52px #0009; }
+body.playing { overflow: hidden; }
+body.playing .topbar, body.playing .controls, body.playing .disclaimer { display: none; }
+body.playing .game-frame { position: fixed; inset: 0; z-index: 20; width: 100vw; height: 100vh; border: 0; border-radius: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, #26372b, #101411 78%); }
+body.playing canvas { width: min(100vw, 160vh); height: min(100vh, 62.5vw); max-width: none; }
+body.playing .hud { top: max(16px, 2.5vh); left: max(16px, 2vw); right: max(16px, 2vw); }
+body.playing .aim-panel { bottom: max(16px, 2.5vh); }
 canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
 .hud { position: absolute; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
 .hud-chip { display: flex; align-items: center; gap: 8px; background: #151b16ed; border: 1px solid #718067; border-radius: 3px; padding: 9px 12px; font-size: 11px; box-shadow: 0 3px 12px #0005; }
@@ -74,8 +80,8 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
       <div class="aim-panel hidden" id="aim-panel">
         <div class="aim-title"><span id="player-turn">SUA VEZ</span><span id="power-text">Força 0%</span></div>
         <div class="power-track"><div id="power-fill"></div></div>
-        <div class="aim-help">Mova o mouse para mirar · Segure clique para carregar · Solte para tacar</div>
-        <div class="ball-legend"><span><i class="legend-mark"></i>Bolas lisas</span><span><i class="legend-mark striped"></i>Bolas listradas</span></div>
+        <div class="aim-help">Mova para mirar · Segure o clique para carregar · Solte para tacar · ESC para voltar</div>
+        <div class="ball-legend"><span><i class="legend-mark"></i>Lisas · seu alvo</span><span><i class="legend-mark striped"></i>Listradas · alvo do adversário</span></div>
       </div>
     </section>
 
@@ -114,6 +120,7 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
   let ballsPocketed = 0;
   let pocketedThisShot = 0;
   let lastTime = 0;
+  const GAME_ZOOM = 1.42;
 
   const player = { x: 210, y: 390, speed: 150, facing: 1 };
   const table = { x: 480, y: 335, w: 410, h: 230 };
@@ -225,6 +232,14 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
   }
   function drawBall(ball) {
     if(!ball.active) return;
+    const desired=turn==="player"?"lisa":"listrada";
+    const hasDesired=balls.some(b=>b.active&&!b.cue&&b.group===desired);
+    const isTarget=hasDesired?ball.group===desired:!ball.cue;
+    if(!ball.cue){
+      ctx.save();ctx.globalAlpha=isTarget?.62:.18;ctx.shadowColor=isTarget?"#f2cf78":"#e8e7dc";ctx.shadowBlur=isTarget?10:4;
+      ctx.strokeStyle=isTarget?"#f2cf78":"#e8e7dc";ctx.lineWidth=isTarget?1.5:1;
+      ctx.beginPath();ctx.arc(ball.x,ball.y,ballR+4,0,Math.PI*2);ctx.stroke();ctx.restore();
+    }
     ctx.beginPath();ctx.ellipse(ball.x+2,ball.y+5,ballR+1,ballR*0.7+2,0,0,Math.PI*2);ctx.fillStyle="#15201688";ctx.fill();
     ctx.beginPath();ctx.ellipse(ball.x,ball.y,ballR,ballR*0.72,0,0,Math.PI*2);ctx.fillStyle=ball.color;ctx.fill();
     if(ball.group==="listrada"){
@@ -263,7 +278,14 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
   function nearTable() { return Math.hypot(player.x-(table.x-table.w/2-20),player.y-table.y)<90; }
 
   function update(dt) {
-    if(mode!=="bar") return;
+    if(mode==="game"){
+      if(charging){
+        charge=Math.min(100,charge+dt*62);
+        powerFill.style.width=charge+"%";
+        powerText.textContent="Força "+Math.round(charge)+"%";
+      }
+      return;
+    }
     let dx=0,dy=0;
     if(keys.has("w")||keys.has("arrowup"))dy-=1;
     if(keys.has("s")||keys.has("arrowdown"))dy+=1;
@@ -315,20 +337,23 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
   }
   function opponentShot() {
     if(mode!=="game"||shotInMotion)return;
-    const cue=balls.find(b=>b.cue&&b.active), target=balls.find(b=>!b.cue&&b.active);
+    const cue=balls.find(b=>b.cue&&b.active);
+    const targetGroup="listrada";
+    const target=balls.find(b=>!b.cue&&b.active&&b.group===targetGroup)||balls.find(b=>!b.cue&&b.active);
     if(!cue||!target){turn="player";updateHud();return;}
     const angle=Math.atan2(target.y-cue.y,target.x-cue.x);
-    cue.vx=Math.cos(angle)*190;cue.vy=Math.sin(angle)*190;
+    cue.vx=Math.cos(angle)*210;cue.vy=Math.sin(angle)*210;
+    charge=0;powerFill.style.width="0%";powerText.textContent="Força 0%";
     pocketedThisShot=0;
     shotInMotion=true;message.textContent="O adversário executou a tacada.";
   }
   function shoot() {
     if(mode!=="game"||turn!=="player"||shotInMotion)return;
     const cue=balls.find(b=>b.cue&&b.active);if(!cue)return;
-    const strength=100+charge*4.1;
+    const strength=80+charge*3.4;
     cue.vx=Math.cos(cueAngle)*strength;cue.vy=Math.sin(cueAngle)*strength;
     pocketedThisShot=0;
-    charge=0;charging=false;shotInMotion=true;message.textContent="Tacada em andamento...";
+    charging=false;shotInMotion=true;message.textContent="Tacada em andamento...";
   }
   function updateHud() {
     modeLabel.textContent=mode==="bar"?"Visão do bar":"Foco na mesa";
@@ -339,18 +364,18 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
     moneyLabel.textContent="R$ "+money;
   }
   function enterGame() {
-    mode="game";turn="player";shotInMotion=false;charge=0;charging=false;resetBalls();
+    mode="game";turn="player";shotInMotion=false;charge=0;charging=false;document.body.classList.add("playing");resetBalls();
     message.textContent="Sua vez! Mova o mouse para mirar e segure o clique para carregar.";
     updateHud();
   }
   function exitGame() {
-    mode="bar";shotInMotion=false;charging=false;charge=0;
+    mode="bar";shotInMotion=false;charging=false;charge=0;document.body.classList.remove("playing");
     message.textContent="Você saiu da mesa. Explore o bar e interaja novamente para jogar.";
     updateHud();
   }
   function render() {
     if(mode==="bar")drawBarView();
-    else {drawBackground();drawTable();drawNPC(740,345,"#a35c4b");drawPlayer();}
+    else {ctx.save();ctx.translate(W/2,H/2);ctx.scale(GAME_ZOOM,GAME_ZOOM);ctx.translate(-table.x,-table.y);drawBackground();drawTable();drawNPC(740,345,"#a35c4b");drawPlayer();ctx.restore();}
   }
   function loop(time) {
     const dt=Math.min((time-lastTime)/1000||0,0.033);lastTime=time;
@@ -369,11 +394,12 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
   window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
   canvas.addEventListener("mousemove",e=>{
     if(mode!=="game"||turn!=="player"||shotInMotion)return;
-    const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*W/r.width,y=(e.clientY-r.top)*H/r.height;
+    const r=canvas.getBoundingClientRect(),sx=(e.clientX-r.left)*W/r.width,sy=(e.clientY-r.top)*H/r.height;
+    const x=table.x+(sx-W/2)/GAME_ZOOM,y=table.y+(sy-H/2)/GAME_ZOOM;
     const cue=balls.find(b=>b.cue&&b.active);if(cue)cueAngle=Math.atan2(y-cue.y,x-cue.x);
   });
   canvas.addEventListener("mousedown",e=>{
-    if(mode==="game"&&turn==="player"&&!shotInMotion){charging=true;charge=5;}
+    if(mode==="game"&&turn==="player"&&!shotInMotion){charging=true;charge=0;powerFill.style.width="0%";powerText.textContent="Força 0%";}
   });
   window.addEventListener("mouseup",()=>{if(charging){shoot();}});
   window.addEventListener("blur",()=>keys.clear());
