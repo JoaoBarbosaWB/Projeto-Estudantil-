@@ -21,10 +21,9 @@
   const keys = new Set();
   let mode = "bar"; // bar | game
   let money = 0;
-  let charging = false;
+  let phase = "bar"; // bar, aiming, charging, rolling, opponent, finished
   let charge = 0;
   let cueAngle = -Math.PI / 3;
-  let shotInMotion = false;
   let turn = "player";
   let ballsPocketed = 0;
   let pocketedThisShot = 0;
@@ -35,6 +34,8 @@
   let scratchedThisShot = false;
   let blackPottedThisShot = false;
   let opponentTimer = null;
+  let shotStartedAt = 0;
+  let physicsAccumulator = 0;
   let lastTime = 0;
   const GAME_ZOOM = 2.62;
 
@@ -148,7 +149,7 @@
     ctx.strokeStyle="#a8d4a4";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x-w/2+35,y-h/2+12);ctx.lineTo(x-w/2+35,y+h/2-12);ctx.stroke();
     ctx.beginPath();ctx.arc(x-w/2+35,y,14,0,Math.PI*2);ctx.stroke();
     balls.forEach(drawBall);
-    if (mode==="game" && turn==="player" && !shotInMotion && !gameOver) drawAim();
+    if (mode==="game" && turn==="player" && (phase==="aiming"||phase==="charging") && !gameOver) drawAim();
   }
   function drawBall(ball) {
     if(!ball.active)return;
@@ -229,7 +230,7 @@
   }
   function update(dt) {
     if(mode==="game"){
-      if(charging){charge=Math.min(100,charge+dt*70);powerFill.style.width=charge+"%";powerText.textContent="Força "+Math.round(charge)+"%";}
+      if(phase==="charging"){charge=Math.min(100,charge+dt*70);powerFill.style.width=charge+"%";powerText.textContent="Força "+Math.round(charge)+"%";}
       return;
     }
     let dx=0,dy=0;
@@ -238,119 +239,118 @@
     if(dx||dy){
       const n=Math.hypot(dx,dy),mx=dx/n*player.speed*dt,my=dy/n*player.speed*dt;
       const nx=Math.max(28,Math.min(W-28,player.x+mx)),ny=Math.max(155,Math.min(H-30,player.y+my));
-      if(!hitsTable(nx,player.y))player.x=nx;
-      if(!hitsTable(player.x,ny))player.y=ny;
+      if(!hitsTable(nx,player.y))player.x=nx;if(!hitsTable(player.x,ny))player.y=ny;
     }
   }
-  function physics(dt) {
-    if(gameOver)return;
-    let moving=false;
-    const left=table.x-table.w/2+ballR,right=table.x+table.w/2-ballR;
-    const top=table.y-table.h/2+ballR,bottom=table.y+table.h/2-ballR;
+  function physicsStep(dt) {
+    const left=table.x-table.w/2+ballR,right=table.x+table.w/2-ballR,top=table.y-table.h/2+ballR,bottom=table.y+table.h/2-ballR;
     for(const ball of balls){
       if(!ball.active)continue;
       ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
-      const speed=Math.hypot(ball.vx,ball.vy);
-      if(speed>0){const next=Math.max(0,speed-105*dt);if(next===0){ball.vx=0;ball.vy=0;}else{ball.vx*=next/speed;ball.vy*=next/speed;}}
-      if(ball.x<left){ball.x=left;ball.vx=Math.abs(ball.vx)*.78;}
-      if(ball.x>right){ball.x=right;ball.vx=-Math.abs(ball.vx)*.78;}
-      if(ball.y<top){ball.y=top;ball.vy=Math.abs(ball.vy)*.78;}
-      if(ball.y>bottom){ball.y=bottom;ball.vy=-Math.abs(ball.vy)*.78;}
       for(const pocket of pockets){
-        if(Math.hypot(ball.x-pocket.x,ball.y-pocket.y)<pocketR-2){
-          if(ball.cue){scratchedThisShot=true;ball.x=left+70;ball.y=table.y;ball.vx=0;ball.vy=0;}
+        if(Math.hypot(ball.x-pocket.x,ball.y-pocket.y)<pocketR-1){
+          if(ball.cue){scratchedThisShot=true;ball.x=left+42;ball.y=table.y;ball.vx=0;ball.vy=0;}
           else{ball.active=false;ballsPocketed++;pocketedThisShot++;if(ball.black)blackPottedThisShot=true;else shotPocketedBalls.push(ball);}
           break;
         }
       }
-      if(Math.hypot(ball.vx,ball.vy)>4)moving=true;
+      if(!ball.active)continue;
+      if(ball.x<left){ball.x=left;ball.vx=Math.abs(ball.vx)*.78;}if(ball.x>right){ball.x=right;ball.vx=-Math.abs(ball.vx)*.78;}
+      if(ball.y<top){ball.y=top;ball.vy=Math.abs(ball.vy)*.78;}if(ball.y>bottom){ball.y=bottom;ball.vy=-Math.abs(ball.vy)*.78;}
+      const speed=Math.hypot(ball.vx,ball.vy);
+      if(speed>0){const next=Math.max(0,speed-125*dt);if(next<2){ball.vx=0;ball.vy=0;}else{ball.vx*=next/speed;ball.vy*=next/speed;}}
     }
-    // Colisões de bolas com massa equivalente e separação de sobreposições.
     for(let i=0;i<balls.length;i++)for(let j=i+1;j<balls.length;j++){
       const first=balls[i],second=balls[j];if(!first.active||!second.active)continue;
-      const dx=second.x-first.x,dy=second.y-first.y,dist=Math.hypot(dx,dy);
-      if(dist>0&&dist<ballR*2){
-        const nx=dx/dist,ny=dy/dist,overlap=ballR*2-dist;
-        first.x-=nx*overlap/2;first.y-=ny*overlap/2;second.x+=nx*overlap/2;second.y+=ny*overlap/2;
-        const relative=(first.vx-second.vx)*nx+(first.vy-second.vy)*ny;
-        if(relative>0){first.vx-=relative*nx;first.vy-=relative*ny;second.vx+=relative*nx;second.vy+=relative*ny;}
-      }
+      const dx=second.x-first.x,dy=second.y-first.y,dist=Math.hypot(dx,dy);if(dist>=ballR*2)continue;
+      const nx=dist?dx/dist:1,ny=dist?dy/dist:0,overlap=ballR*2-dist;
+      first.x-=nx*overlap*.5;first.y-=ny*overlap*.5;second.x+=nx*overlap*.5;second.y+=ny*overlap*.5;
+      const closing=(first.vx-second.vx)*nx+(first.vy-second.vy)*ny;
+      if(closing>0){const impulse=closing*.94;first.vx-=impulse*nx;first.vy-=impulse*ny;second.vx+=impulse*nx;second.vy+=impulse*ny;}
     }
-    if(!moving&&!balls.some(ball=>Math.hypot(ball.vx,ball.vy)>4)){
-      shotInMotion=false;
-      const firstGroup=shotPocketedBalls.find(ball=>ball.group==="lisa"||ball.group==="listrada")?.group;
-      const groupWasAssigned=playerGroup===null&&!!firstGroup&&!scratchedThisShot;
-      if(groupWasAssigned)playerGroup=turn==="player"?firstGroup:(firstGroup==="lisa"?"listrada":"lisa");
-      if(blackPottedThisShot){
-        const currentGroup=playerGroup?(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")):null;
-        const remaining=!!currentGroup&&balls.some(ball=>ball.active&&ball.group===currentGroup);
-        winner=currentGroup&&!remaining&&!scratchedThisShot?turn:(turn==="player"?"opponent":"player");
-        gameOver=true;message.textContent=winner==="player"?"Você encaçapou a preta e venceu!":"A preta foi encaçapada fora de hora. O adversário venceu.";
-        updateHud();return;
-      }
-      if(playerGroup&&firstGroup&&!scratchedThisShot){
-        const owner=turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa");
-        const scoredOwn=shotPocketedBalls.some(ball=>ball.group===owner);
-        if(scoredOwn){
-          const ownRemain=balls.some(ball=>ball.active&&!ball.cue&&ball.group===owner);
-          if(groupWasAssigned)message.textContent="Grupos definidos: você fica com "+(playerGroup==="lisa"?"lisas":"listradas")+".";
-          else message.textContent=ownRemain?(turn==="player"?"Boa! Você continua.":"O adversário encaçapou e continua."):"Suas bolas acabaram. Agora mire na preta.";
-          pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;updateHud();
-          if(turn==="opponent")scheduleOpponentShot();
-          else setTimeout(()=>{message.textContent=ownRemain?"Sua vez! Continue a tacada.":"Todas as suas bolas foram encaçapadas. Agora mire na preta.";updateHud();},650);
-          return;
-        }
-      }
-      if(groupWasAssigned)message.textContent="Grupos definidos: você fica com "+(playerGroup==="lisa"?"lisas":"listradas")+". Sua vez termina.";
-      else if(playerGroup&&!balls.some(ball=>ball.active&&!ball.cue&&ball.group===(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa"))))
-        message.textContent="Todas as suas bolas foram encaçapadas. Agora mire na preta.";
-      else message.textContent=scratchedThisShot?"A branca caiu. Sua vez termina.":"A tacada terminou. Vez do adversário.";
-      turn=turn==="player"?"opponent":"player";
-      pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;updateHud();
-      if(turn==="opponent")scheduleOpponentShot();
+  }
+  function finishShot(){
+    if(phase!=="rolling")return;
+    phase="settling";
+    const firstGroup=shotPocketedBalls.find(ball=>ball.group==="lisa"||ball.group==="listrada")?.group;
+    const groupWasAssigned=playerGroup===null&&!!firstGroup&&!scratchedThisShot;
+    if(groupWasAssigned)playerGroup=turn==="player"?firstGroup:(firstGroup==="lisa"?"listrada":"lisa");
+    if(blackPottedThisShot){
+      const myGroup=playerGroup?(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")):null;
+      const ownRemain=!!myGroup&&balls.some(ball=>ball.active&&ball.group===myGroup);
+      winner=myGroup&&!ownRemain&&!scratchedThisShot?turn:(turn==="player"?"opponent":"player");
+      gameOver=true;phase="finished";message.textContent=winner==="player"?"Você encaçapou a preta e venceu!":"A preta foi encaçapada fora de hora. O adversário venceu.";
+      updateHud();return;
     }
+    const myGroup=playerGroup?(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")):null;
+    const scoredOwn=!!myGroup&&shotPocketedBalls.some(ball=>ball.group===myGroup);
+    if(scoredOwn&&!scratchedThisShot){
+      const ownRemain=balls.some(ball=>ball.active&&!ball.cue&&ball.group===myGroup);
+      pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
+      if(turn==="opponent"){
+        phase="opponent";message.textContent=ownRemain?"O adversário encaçapou uma bola e continua.":"O adversário limpou o grupo. Agora tentará a preta.";
+        updateHud();scheduleOpponentShot();return;
+      }
+      phase="aiming";message.textContent=groupWasAssigned?"Grupos definidos. Você continua com "+(playerGroup==="lisa"?"as lisas.":"as listradas."):(ownRemain?"Boa! Você continua.":"Suas bolas acabaram. Agora mire na preta.");
+      updateHud();return;
+    }
+    const hadScratch=scratchedThisShot;
+    turn=turn==="player"?"opponent":"player";
+    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
+    if(turn==="opponent"){phase="opponent";message.textContent="Sua tacada terminou. O adversário vai jogar.";updateHud();scheduleOpponentShot();return;}
+    phase="aiming";message.textContent=groupWasAssigned?"Grupos definidos. Agora é a vez do adversário.":(hadScratch?"A branca caiu. Sua vez terminou.":"A tacada terminou. Sua vez.");
+    updateHud();
+  }
+  function physics(frameDt){
+    if(phase!=="rolling")return;
+    if(performance.now()-shotStartedAt>10000){balls.forEach(ball=>{ball.vx=0;ball.vy=0;});finishShot();return;}
+    physicsAccumulator+=Math.min(Math.max(frameDt,0),.05);
+    const step=1/120;let steps=0;
+    while(physicsAccumulator>=step&&steps<8&&phase==="rolling"){physicsStep(step);physicsAccumulator-=step;steps++;}
+    const maxSpeed=Math.max(0,...balls.filter(ball=>ball.active).map(ball=>Math.hypot(ball.vx,ball.vy)));
+    if(maxSpeed<6){balls.forEach(ball=>{if(Math.hypot(ball.vx,ball.vy)<6){ball.vx=0;ball.vy=0;}});finishShot();}
   }
   function scheduleOpponentShot(){
     if(opponentTimer)clearTimeout(opponentTimer);
-    opponentTimer=setTimeout(()=>{opponentTimer=null;if(mode==="game"&&turn==="opponent"&&!shotInMotion&&!gameOver)opponentShot();},650);
+    phase="opponent";
+    opponentTimer=setTimeout(()=>{opponentTimer=null;if(mode==="game"&&turn==="opponent"&&phase==="opponent"&&!gameOver)opponentShot();},500);
   }
-  function opponentShot() {
-    if(mode!=="game"||turn!=="opponent"||shotInMotion||gameOver)return;
-    const cue=balls.find(b=>b.cue&&b.active);
+  function opponentShot(){
+    if(mode!=="game"||turn!=="opponent"||phase!=="opponent"||gameOver)return;
+    const cue=balls.find(ball=>ball.cue&&ball.active);
     const aiGroup=playerGroup?(playerGroup==="lisa"?"listrada":"lisa"):null;
-    const target=balls.find(b=>!b.cue&&b.active&&b.group===aiGroup)||balls.find(b=>!b.cue&&b.active);
-    if(!cue||!target){turn="player";updateHud();return;}
+    const target=balls.find(ball=>ball.active&&ball.group===aiGroup&&!ball.black)||balls.find(ball=>ball.active&&!ball.cue&&!ball.black)||balls.find(ball=>ball.active&&ball.black);
+    if(!cue||!target){turn="player";phase="aiming";message.textContent="Sua vez.";updateHud();return;}
     const angle=Math.atan2(target.y-cue.y,target.x-cue.x);
-    cue.vx=Math.cos(angle)*210;cue.vy=Math.sin(angle)*210;
-    charge=0;powerFill.style.width="0%";powerText.textContent="Força 0%";
-    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
-    shotInMotion=true;message.textContent="O adversário executou a tacada.";
+    cue.vx=Math.cos(angle)*220;cue.vy=Math.sin(angle)*220;
+    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
+    phase="rolling";message.textContent="O adversário executou a tacada.";updateHud();
   }
-  function shoot() {
-    if(mode!=="game"||turn!=="player"||shotInMotion||gameOver)return;
-    const cue=balls.find(b=>b.cue&&b.active);if(!cue)return;
-    const strength=90+charge*3.1;
+  function shoot(){
+    if(mode!=="game"||turn!=="player"||phase!=="charging"||gameOver)return;
+    const cue=balls.find(ball=>ball.cue&&ball.active);if(!cue)return;
+    const strength=85+charge*3.2;
     cue.vx=Math.cos(cueAngle)*strength;cue.vy=Math.sin(cueAngle)*strength;
-    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;
-    charging=false;shotInMotion=true;message.textContent="Tacada em andamento...";
+    pocketedThisShot=0;shotPocketedBalls=[];scratchedThisShot=false;blackPottedThisShot=false;physicsAccumulator=0;shotStartedAt=performance.now();
+    phase="rolling";message.textContent="Tacada em andamento...";updateHud();
   }
   function updateHud() {
     modeLabel.textContent=mode==="bar"?"Visão do bar":"Partida · 22 bolas + preta";
     turnLabel.textContent=mode==="bar"?"Explore o bar":gameOver?"Partida encerrada":turn==="player"?"Sua vez":"Vez do adversário";
     aimPanel.classList.toggle("hidden",mode!=="game");
-    message.classList.toggle("hidden",mode==="game"&&turn==="player"&&!shotInMotion&&!gameOver);
+    message.classList.toggle("hidden",mode==="game"&&turn==="player"&&(phase==="aiming"||phase==="charging")&&!gameOver);
     playerTurn.textContent=gameOver?(winner==="player"?"VOCÊ VENCEU":"ADVERSÁRIO VENCEU"):playerGroup===null?"GRUPOS NEUTROS":(turn==="player"?"SUA VEZ":"ADVERSÁRIO")+" · "+(turn==="player"?playerGroup:(playerGroup==="lisa"?"listrada":"lisa")).toUpperCase();
     moneyLabel.textContent="R$ "+money;
   }
   function enterGame() {
     if(opponentTimer){clearTimeout(opponentTimer);opponentTimer=null;}
-    mode="game";turn="player";shotInMotion=false;charge=0;charging=false;document.body.classList.add("playing");resetBalls();
+    mode="game";turn="player";phase="aiming";charge=0;physicsAccumulator=0;document.body.classList.add("playing");resetBalls();
     message.textContent="Sua vez! Mova o mouse para mirar e segure o clique para carregar.";
     updateHud();
   }
   function exitGame() {
     if(opponentTimer){clearTimeout(opponentTimer);opponentTimer=null;}
-    mode="bar";shotInMotion=false;charging=false;charge=0;document.body.classList.remove("playing");
+    mode="bar";phase="bar";charge=0;physicsAccumulator=0;document.body.classList.remove("playing");
     message.textContent="Você saiu da mesa. Explore o bar e interaja novamente para jogar.";
     updateHud();
   }
@@ -361,7 +361,7 @@
   function loop(time) {
     const dt=Math.min((time-lastTime)/1000||0,0.033);lastTime=time;
     update(dt);
-    if(mode==="game"&&shotInMotion)physics(dt);
+    if(mode==="game"&&phase==="rolling")physics(dt);
     render();requestAnimationFrame(loop);
   }
 
@@ -374,15 +374,15 @@
   });
   window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
   canvas.addEventListener("mousemove",e=>{
-    if(mode!=="game"||turn!=="player"||shotInMotion)return;
+    if(mode!=="game"||turn!=="player"||(phase!=="aiming"&&phase!=="charging"))return;
     const r=canvas.getBoundingClientRect(),sx=(e.clientX-r.left)*W/r.width,sy=(e.clientY-r.top)*H/r.height;
     const x=table.x+(sx-W/2)/GAME_ZOOM,y=table.y+(sy-H/2)/GAME_ZOOM;
     const cue=balls.find(b=>b.cue&&b.active);if(cue)cueAngle=Math.atan2(y-cue.y,x-cue.x);
   });
   canvas.addEventListener("mousedown",e=>{
-    if(mode==="game"&&turn==="player"&&!shotInMotion){charging=true;charge=0;powerFill.style.width="0%";powerText.textContent="Força 0%";}
+    if(mode==="game"&&turn==="player"&&phase==="aiming"){phase="charging";charge=0;powerFill.style.width="0%";powerText.textContent="Força 0%";}
   });
-  window.addEventListener("mouseup",()=>{if(charging){shoot();}});
-  window.addEventListener("blur",()=>{keys.clear();if(charging){charging=false;shoot();}});
+  window.addEventListener("mouseup",()=>{if(phase==="charging")shoot();});
+  window.addEventListener("blur",()=>{keys.clear();if(phase==="charging")shoot();});
   resetBalls();updateHud();requestAnimationFrame(loop);
 })();
