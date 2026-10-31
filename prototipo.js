@@ -324,7 +324,12 @@
       const legal=!!myGroup&&!ownRemain&&!foul;
       winner=legal?turn:(turn==="player"?"opponent":"player");
       gameOver=true;phase="finished";
-      message.textContent=(turn==="player"
+      if (winner==="player") {
+        const prize=30;
+        money+=prize;
+        message.textContent="Você venceu a partida e ganhou R$ "+prize+"! ";
+      }
+      message.textContent+=(turn==="player"
         ?(legal?"Você encaçapou a preta e venceu!":"Você encaçapou a preta fora de hora. O adversário venceu.")
         :(legal?"O adversário encaçapou a preta e venceu.":"O adversário encaçapou a preta fora de hora. Você venceu!"))
         +" Toque em Nova partida ou aperte R.";
