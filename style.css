@@ -56,3 +56,18 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
   .message { white-space: normal; font-size: 10px; }
   .controls { font-size: 10px; }
 }
+
+/* Camada narrativa da carreira — introdução */
+.career-overlay{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:22px;background:linear-gradient(180deg,#0b100bd9,#0b100bb8);backdrop-filter:blur(3px)}
+.career-card{width:min(620px,100%);border:1px solid #9c8150;background:#171d17f5;box-shadow:0 18px 55px #0009;padding:clamp(18px,4vw,30px);color:#f4efe4}
+.career-kicker{margin:0 0 10px;color:#e7b85b;font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+.career-title{margin:0 0 12px;font-size:clamp(19px,4vw,27px);line-height:1.25}
+.career-copy{min-height:86px;margin:0;color:#d8d4c7;font-size:13px;line-height:1.8;white-space:pre-line}
+.career-speaker{margin:0 0 8px;color:#e7b85b;font-size:12px;font-weight:bold}
+.career-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.career-btn{border:1px solid #8b7549;background:#283328;color:#f6efdf;padding:11px 17px;font:inherit;cursor:pointer}
+.career-btn.primary{background:#b1833e;color:#17150f;font-weight:bold}
+.career-btn:hover{filter:brightness(1.15)}
+.career-notice{position:absolute;z-index:19;right:18px;top:58px;width:min(310px,calc(100% - 36px));border:1px solid #a58a55;background:#171d17f5;padding:14px;color:#eee7d6;box-shadow:0 10px 30px #0008}
+.career-notice strong{display:block;color:#e7b85b;margin-bottom:7px}
+@media(max-width:600px){.career-overlay{padding:10px}.career-copy{font-size:12px;min-height:75px}.career-actions{margin-top:14px}}
