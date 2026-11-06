@@ -213,16 +213,37 @@
   }
   function drawPlayer() {
     const x=player.x,y=player.y;
-    // Isometric shadow and tiny pixel character.
-    polygon([{x:x-12,y:y+7},{x:x,y:y},{x:x+12,y:y+7},{x:x,y:y+14}],"#17221988");
-    rect(x-6,y-13,12,14,"#315c91");rect(x-5,y-20,10,8,"#c58d62");
-    rect(x-6,y-23,12,4,"#34251c");rect(x-4,y-7,4,8,"#242c3b");rect(x+2,y-7,4,8,"#242c3b");
-    rect(x-8,y+1,5,3,"#171c1a");rect(x+3,y+1,5,3,"#171c1a");
+    // Protagonista: camiseta de time, bermuda jeans e chinelo.
+    polygon([{x:x-14,y:y+7},{x:x,y:y-1},{x:x+14,y:y+7},{x:x,y:y+15}],"#10171099");
+    rect(x-7,y-14,14,15,"#e6e0c9");rect(x-6,y-12,12,9,"#287b4b");
+    rect(x-5,y-21,10,8,"#a96f4c");rect(x-6,y-25,12,5,"#292019");
+    rect(x-7,y-5,6,8,"#315c91");rect(x+1,y-5,6,8,"#315c91");
+    rect(x-9,y+2,7,3,"#24201a");rect(x+2,y+2,7,3,"#24201a");
+    // Rosto expressivo: sobrancelha, nariz e sorriso.
+    rect(x-4,y-18,2,2,"#211a16");rect(x+2,y-18,2,2,"#211a16");
+    rect(x-1,y-15,3,2,"#d28b62");rect(x-3,y-12,6,1,"#5a241e");
+    rect(x+5,y-11,3,5,"#e6e0c9");
   }
   function drawNPC(x,y,color) {
-    polygon([{x:x-10,y:y+6},{x:x,y:y},{x:x+10,y:y+6},{x:x,y:y+12}],"#17221988");
-    rect(x-5,y-12,10,13,color);rect(x-4,y-19,8,7,"#b9825b");rect(x-5,y-22,10,4,"#30241b");
-    rect(x-5,y-1,4,7,"#252b29");rect(x+1,y-1,4,7,"#252b29");
+    // Amigos do bar: silhuetas diferentes, barriga, boné, bigode e chinelo.
+    const isRed=color==="#a35c4b";
+    polygon([{x:x-13,y:y+7},{x:x,y:y-1},{x:x+13,y:y+7},{x:x,y:y+15}],"#10171099");
+    // pernas e chinelos
+    rect(x-7,y-1,6,9,"#303a35");rect(x+2,y-1,6,9,"#303a35");
+    rect(x-9,y+6,8,3,"#171512");rect(x+2,y+6,8,3,"#171512");
+    // tronco e barriga
+    rect(x-8,y-16,16,16,color);rect(x-7,y-12,14,8,isRed?"#c77b61":"#7397a8");
+    rect(x-3,y-15,6,7,"#e0d5bd");
+    // braços
+    rect(x-12,y-14,4,13,"#b87e5a");rect(x+8,y-14,4,13,"#b87e5a");
+    // cabeça e cabelo/boné
+    rect(x-6,y-25,12,10,"#b77c59");rect(x-7,y-29,14,5,isRed?"#e2b34f":"#263b4c");
+    rect(x-8,y-25,16,2,isRed?"#e2b34f":"#263b4c");
+    // olhos, nariz e bigode
+    rect(x-4,y-21,2,2,"#211a16");rect(x+2,y-21,2,2,"#211a16");
+    rect(x-1,y-18,3,2,"#d99468");
+    if(isRed){rect(x-4,y-16,8,2,"#39251d");rect(x+5,y-13,4,4,"#d9c9aa");}
+    else {rect(x-3,y-16,6,1,"#6a3427");rect(x-10,y-10,3,7,"#b77c59");}
   }
   function nearTable() { return Math.hypot(player.x-(table.x-table.w/2-20),player.y-table.y)<90; }
 
