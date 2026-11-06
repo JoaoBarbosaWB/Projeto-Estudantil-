@@ -71,3 +71,34 @@ kbd { display: inline-block; padding: 3px 6px; background: #222b24; border: 1px 
 .career-notice{position:absolute;z-index:19;right:18px;top:58px;width:min(310px,calc(100% - 36px));border:1px solid #a58a55;background:#171d17f5;padding:14px;color:#eee7d6;box-shadow:0 10px 30px #0008}
 .career-notice strong{display:block;color:#e7b85b;margin-bottom:7px}
 @media(max-width:600px){.career-overlay{padding:10px}.career-copy{font-size:12px;min-height:75px}.career-actions{margin-top:14px}}
+
+
+/* Cutscenes: visual novel cômica com clima de boteco brasileiro */
+.career-overlay{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:clamp(10px,3vw,28px);background:radial-gradient(ellipse at 50% 20%,#4a3a25b8,#090e0beF 78%);backdrop-filter:blur(4px);animation:sceneFade .35s ease-out}
+.cutscene-stage{width:min(900px,100%);display:grid;grid-template-columns:minmax(190px,.78fr) minmax(0,1.35fr);border:2px solid #b28a4d;background:#151b16;box-shadow:0 20px 70px #000b;overflow:hidden}
+.cutscene-art{position:relative;min-height:330px;display:grid;place-items:center;overflow:hidden;background:linear-gradient(180deg,#453322,#785331 58%,#263b2b 59%,#1b2d21)}
+.cutscene-art:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 34px,#ffffff09 35px 36px),linear-gradient(90deg,#0003,transparent 35%,#0003)}
+.cutscene-art:after{content:"";position:absolute;left:8%;right:8%;bottom:19%;height:18%;border:5px solid #694329;background:#23734c;box-shadow:0 9px 0 #3b281b}
+.scene-avatar{position:relative;z-index:1;width:clamp(100px,15vw,150px);height:clamp(100px,15vw,150px);display:grid;place-items:center;border:4px solid #e5c27b;border-radius:50%;background:radial-gradient(circle at 35% 28%,#fff5d8,#c59a58 65%,#69452b);font-size:clamp(55px,8vw,88px);box-shadow:0 12px 25px #0008;animation:avatarPop .35s cubic-bezier(.2,1.5,.5,1)}
+.scene-stamp{position:absolute;z-index:2;top:17px;left:17px;padding:7px 10px;background:#171d17dd;border:1px solid #c6a15e;color:#f3d38e;font-size:9px;letter-spacing:.14em}
+.scene-caption{position:absolute;z-index:2;bottom:12px;left:0;right:0;text-align:center;color:#f3dca9;font-size:10px;letter-spacing:.16em;text-shadow:0 2px 4px #000}
+.cutscene-art[data-scene="home"]{background:linear-gradient(180deg,#202d4b,#43516b 58%,#533c30 59%,#30251f)}
+.cutscene-art[data-scene="phone"]{background:linear-gradient(145deg,#4c3564,#202d4b 60%,#17241d)}
+.cutscene-art[data-kind="friend"] .scene-avatar{background:radial-gradient(circle at 35% 25%,#fff0c9,#d38c43 65%,#713d26)}
+.cutscene-art[data-kind="player"] .scene-avatar{background:radial-gradient(circle at 35% 25%,#e9fff1,#65a77c 65%,#244a35)}
+.career-card{position:relative;width:100%;min-width:0;border:0;background:linear-gradient(145deg,#20291f,#121812);padding:clamp(18px,3vw,30px);color:#f4efe4;display:flex;flex-direction:column;justify-content:center}
+.career-progress{height:4px;background:#3b4638;margin-bottom:22px;overflow:hidden}
+.career-progress span{display:block;height:100%;width:0;background:#e0b35e;transition:width .25s ease}
+.career-kicker{margin:0 0 18px;color:#d8b36e;font-size:9px;letter-spacing:.16em;text-transform:uppercase}
+.career-speaker{display:inline-flex;align-self:flex-start;margin:0 0 8px;padding:5px 9px;background:#384638;color:#f0d18e;font-size:10px;font-weight:800;letter-spacing:.08em}
+.career-title{margin:0 0 12px;font-size:clamp(19px,3vw,27px);line-height:1.2;color:#fff4d9}
+.career-copy{min-height:100px;margin:0;color:#d8d9cb;font-size:clamp(11px,1.5vw,13px);line-height:1.75;white-space:pre-line}
+.career-line{margin:16px 0 0;padding:12px 14px;border-left:3px solid #d6a552;background:#2a3328;color:#ffe4a8;font-size:clamp(12px,1.5vw,14px);line-height:1.55;font-weight:700}
+.career-actions{display:flex;justify-content:flex-end;margin-top:20px}
+.career-btn{border:1px solid #8b7549;background:#283328;color:#f6efdf;padding:11px 20px;font:inherit;font-weight:700;cursor:pointer}
+.career-btn.primary{background:#d7a34f;border-color:#f0ca7d;color:#21190e;box-shadow:0 3px 0 #76532a}
+.career-btn.primary:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.cutscene-hint{margin:13px 0 0;text-align:right;color:#7f8b7b;font-size:9px}
+@keyframes sceneFade{from{opacity:0}to{opacity:1}}
+@keyframes avatarPop{from{transform:scale(.65) rotate(-8deg);opacity:.3}to{transform:scale(1) rotate(0);opacity:1}}
+@media(max-width:650px){.cutscene-stage{grid-template-columns:1fr;max-height:94%;overflow:auto}.cutscene-art{min-height:155px}.scene-avatar{width:84px;height:84px;font-size:48px}.cutscene-art:after{bottom:12%;height:12%}.career-card{padding:16px}.career-copy{min-height:60px}.career-progress{margin-bottom:13px}}
